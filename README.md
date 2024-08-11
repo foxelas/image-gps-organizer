@@ -8,3 +8,5 @@ The final folder will have the format:
 
 So, the DJI_0001 photo taken in Kleftiko on Milos will be renamed to DJI_0001_Cyc_Milos and placed in the folder:
 Photos - Cyclades - Milos
+
+A file with location and date tracker is saved in location_tracker.csv
