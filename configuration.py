@@ -1,4 +1,7 @@
-ACCEPTED_FILETYPES = ['jpg', 'dng'] #, 'mp4', 'mov']
+ACCEPTED_IMAGE_FILETYPES = ['jpg', 'dng']
+VIDEO_FILETYPES = ['mov', 'mp4']
+
+TRACKER_FILE = 'location_tracker.csv'
 
 ISLAND_GROUPS = {
     'South Aegean': 'Cyclades',

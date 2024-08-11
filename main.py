@@ -3,9 +3,26 @@ import shutil
 import tkinter as tk
 from os.path import join as pathjoin
 from tkinter import filedialog
+import xml.etree.ElementTree as ET
+import ffmpeg
 import piexif
 from PIL import Image
-from configuration import ACCEPTED_FILETYPES, ISLAND_GROUPS, CODEC, GEOLOCATOR
+import pandas as pd
+from configuration import ACCEPTED_IMAGE_FILETYPES, ISLAND_GROUPS, CODEC, GEOLOCATOR, VIDEO_FILETYPES, TRACKER_FILE
+
+
+def init_date_tracker():
+    if os.path.exists(TRACKER_FILE):
+        date_tracker_df_ = pd.read_csv(TRACKER_FILE, index_col=0)
+    else:
+        date_tracker_df_ = pd.DataFrame({'capture_datetime': [], 'latitude': [], 'longitude': [], 'location': []})
+        date_tracker_df_.set_index('capture_datetime', inplace=True)
+        date_tracker_df_.to_csv(TRACKER_FILE)
+
+    return date_tracker_df_
+
+
+date_tracker_df = init_date_tracker()
 
 
 def exif_to_tag(exif_dict):
@@ -52,13 +69,11 @@ def exif_tag_to_lat_lon(gps_data):
     else:
         return None, None
 
-import xml.etree.ElementTree as ET
 
 def extract_exif_from_xmp(xmp_data):
     try:
         # Parse the XMP data
         root = ET.fromstring(xmp_data)
-
         # Define namespaces
         namespaces = {
             'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
@@ -79,7 +94,8 @@ def extract_exif_from_xmp(xmp_data):
         exif_data = {}
         if description is not None:
             exif_data['ModifyDate'] = description.get(f"{{{namespaces['xmp']}}}ModifyDate")
-            exif_data['CreateDate'] = description.get(f"{{{namespaces['xmp']}}}CreateDate")
+            exif_data['CreateDate'] = description.get(f"{{{namespaces['xmp']}}}ModifyDate")
+            exif_data['MetadataDate'] = description.get(f"{{{namespaces['xmp']}}}MetadataDate")
             exif_data['Make'] = description.get(f"{{{namespaces['tiff']}}}Make")
             exif_data['Model'] = description.get(f"{{{namespaces['tiff']}}}Model")
             exif_data['Format'] = description.get(f"{{{namespaces['dc']}}}format")
@@ -101,28 +117,75 @@ def extract_exif_from_xmp(xmp_data):
         return None
 
 
-def get_gps_data_from_metadata(filepath):
+def get_video_metadata(filepath):
+    probe = ffmpeg.probe(filepath)
+    return probe['format']['tags']
+
+
+def append_to_tracker(capture_datetime, lat, lon, location):
+    if capture_datetime is not None and capture_datetime not in date_tracker_df.index:
+        date_tracker_df.loc[capture_datetime] = [lat, lon, location]
+        print(f"Append to tracker: {capture_datetime}, {lat}, {lon}, {location}")
+        print(date_tracker_df)
+
+
+def fetch_from_tracker(capture_datetime):
+    if capture_datetime is not None:
+        print(f"Fetching GPS data for {capture_datetime}")
+        idx = date_tracker_df.index.get_indexer([capture_datetime], method='nearest')
+        res = date_tracker_df.iloc[idx]
+        lat = res['latitude'].values[0]
+        lon = res['longitude'].values[0]
+        return lat, lon
+    else:
+        return None, None
+
+
+def get_gps_data_from_metadata(filepath, capture_datetime=None):
+    print(f"Processing file: {filepath}")
     lat = None
     lon = None
-    im = Image.open(filepath)
 
     if filepath.lower().endswith('.jpg'):
+        im = Image.open(filepath)
         exif_dict = piexif.load(im.info.get('exif'))
         exif_data = exif_to_tag(exif_dict)
         gps_data = exif_data['GPS']
+        capture_datetime = exif_data['Exif']['DateTimeOriginal']
+        capture_datetime = pd.to_datetime(capture_datetime, format='%Y:%m:%d %H:%M:%S')
         lat, lon = exif_tag_to_lat_lon(gps_data)
-        print(lat, lon)
 
     elif filepath.lower().endswith('.dng'):
+        im = Image.open(filepath)
         exif_dict = extract_exif_from_xmp(im.info.get('xmp').decode('utf-8'))
         lat = exif_dict.get('GpsLatitude')
         lon = exif_dict.get('GpsLongitude')
+        ## ignore because it is wrong date
+        capture_datetime = None
+        # capture_datetime = exif_dict.get('MetadataDate') if exif_dict.get('MetadataDate') is not None else exif_dict.get('CreateDate')
+        # capture_datetime = pd.to_datetime(capture_datetime, format='mixed').replace(tzinfo=None)
 
-    return lat, lon
+    elif filepath.lower().endswith('.mov'):
+        res = get_video_metadata(filepath)
+        capture_datetime = res['creation_time']
+        capture_datetime = pd.to_datetime(capture_datetime, format='%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None)
+        lat, lon = fetch_from_tracker(capture_datetime)
+        if lat is None or lon is None:
+            print(f"No GPS data available for video files: {filepath}")
+
+    elif filepath.lower().endswith('.mp4'):
+        res = get_video_metadata(filepath)
+        capture_datetime = res['creation_time']
+        capture_datetime = pd.to_datetime(capture_datetime, format='%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None)
+        lat, lon = fetch_from_tracker(capture_datetime)
+        if lat is None or lon is None:
+            print(f"No GPS data available for video files: {filepath}")
+
+    return lat, lon, capture_datetime
 
 
 def get_address_from_gps(lat, lon):
-    location = GEOLOCATOR.reverse(lat + "," + lon, language="en")
+    location = GEOLOCATOR.reverse(lat + "," + lon, language="en", timeout=None)
     return location.address
 
 
@@ -156,13 +219,17 @@ def copy_file(source_path, target_dir, target_name):
 
 
 def move_file_to_output_folder(filepath):
-    lat, lon = get_gps_data_from_metadata(filepath)
+    lat, lon, capture_datetime = get_gps_data_from_metadata(filepath)
     print(f"Found GPS data in {filepath}")
 
     address = get_address_from_gps(str(lat), str(lon))
     print(address)
     island, group = parse_address(address)
     print(island, group)
+
+    print(filepath)
+    if filepath.lower().endswith(tuple(ACCEPTED_IMAGE_FILETYPES)):
+        append_to_tracker(capture_datetime, lat, lon, island)
 
     # Move the file to the output folder
     filename = os.path.basename(filepath)
@@ -186,7 +253,7 @@ def list_files_in_directory(target_dir, function=None):
     file_list = []
     # Walk through the directory tree
     for root, dirnames, filenames in os.walk(target_dir):
-        filenames = [x for x in filenames if x.lower().endswith(tuple(ACCEPTED_FILETYPES))]
+        filenames = [x for x in filenames if x.lower().endswith(tuple(ACCEPTED_IMAGE_FILETYPES + VIDEO_FILETYPES))]
         for filename in filenames:
             full_path = os.path.join(root, filename)
             file_list.append(full_path)
@@ -197,7 +264,6 @@ def list_files_in_directory(target_dir, function=None):
 
 
 def organize_photos():
-
     target_dir = select_target_directory()
     if target_dir is None:
         return
@@ -209,6 +275,9 @@ def organize_photos():
 
     list_files_in_directory(target_dir, function=move_file_to_output_folder)
 
+    print(date_tracker_df)
+    date_tracker_df.to_csv(TRACKER_FILE)
+    print("Done!")
     lbl2.config(text="Done!")
 
 
@@ -221,7 +290,7 @@ button1 = tk.Button(text='Organize Photos', command=organize_photos, bg='blue', 
 canvas1.create_window(140, 150, window=button1, height=50, width=200)
 lbl = tk.Label(
     text=" Scans a selected folder (and its subfolders) for photos with GPS metadata. \nMoves these photos to a new folder, renaming them to include \nthe corresponding island and group information.",
-    justify = tk.LEFT, bd=4, relief = tk.RIDGE, bg = 'lightblue')
+    justify=tk.LEFT, bd=4, relief=tk.RIDGE, bg='lightblue')
 lbl.place(x=40, y=50)
 lbl2 = tk.Label(text="")
 lbl2.place(x=130, y=200)
