@@ -4,3 +4,4 @@ Pillow==10.4.0
 pandas~=2.2.2
 mediameta
 ffmpeg-python
+pyinstaller
