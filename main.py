@@ -8,12 +8,15 @@ import ffmpeg
 import piexif
 from PIL import Image
 import pandas as pd
-from configuration import ACCEPTED_IMAGE_FILETYPES, ISLAND_GROUPS, CODEC, GEOLOCATOR, VIDEO_FILETYPES, TRACKER_FILE
+from configuration import ACCEPTED_IMAGE_FILETYPES, ISLAND_GROUPS, CODEC, GEOLOCATOR, VIDEO_FILETYPES, TRACKER_FILE, \
+    FILE_SORTING_LIST
 
 
 def init_date_tracker():
     if os.path.exists(TRACKER_FILE):
         date_tracker_df_ = pd.read_csv(TRACKER_FILE, index_col=0)
+        date_tracker_df_.index = pd.to_datetime(date_tracker_df_.index)
+
     else:
         date_tracker_df_ = pd.DataFrame({'capture_datetime': [], 'latitude': [], 'longitude': [], 'location': []})
         date_tracker_df_.set_index('capture_datetime', inplace=True)
@@ -124,7 +127,9 @@ def get_video_metadata(filepath):
 
 def append_to_tracker(capture_datetime, lat, lon, location):
     if capture_datetime is not None and capture_datetime not in date_tracker_df.index:
+        capture_datetime = pd.to_datetime(capture_datetime)
         date_tracker_df.loc[capture_datetime] = [lat, lon, location]
+        date_tracker_df.sort_index(inplace=True)
         print(f"Append to tracker: {capture_datetime}, {lat}, {lon}, {location}")
         print(date_tracker_df)
 
@@ -132,11 +137,15 @@ def append_to_tracker(capture_datetime, lat, lon, location):
 def fetch_from_tracker(capture_datetime):
     if capture_datetime is not None:
         print(f"Fetching GPS data for {capture_datetime}")
-        idx = date_tracker_df.index.get_indexer([capture_datetime], method='nearest')
-        res = date_tracker_df.iloc[idx]
-        lat = res['latitude'].values[0]
-        lon = res['longitude'].values[0]
-        return lat, lon
+        try:
+            idx = date_tracker_df.index.get_indexer([capture_datetime], method='nearest')
+            res = date_tracker_df.iloc[idx]
+            lat = res['latitude'].values[0]
+            lon = res['longitude'].values[0]
+            return lat, lon
+        except ValueError as e:
+            print(f"Error: {e}")
+            return None, None
     else:
         return None, None
 
@@ -185,27 +194,30 @@ def get_gps_data_from_metadata(filepath, capture_datetime=None):
 
 
 def get_address_from_gps(lat, lon):
-    location = GEOLOCATOR.reverse(lat + "," + lon, language="en", timeout=None)
-    return location.address
+    location = GEOLOCATOR.reverse(lat + "," + lon, language="en", timeout=None, addressdetails=True)
+    print(location.address)
+    return location.raw
 
 
-def parse_island_name(parts):
-    island = parts[-4].replace("Regional Unit", "").strip()
-    if island == "of Islands":
-        return parts[-5].replace("Municipality of", "").strip()
+def parse_island_name(municipality, regional_unit):
+    if municipality is not None:
+        island = municipality.replace("Municipality of", "").strip()
+        island = island.replace("Municipality", "").strip()
+        return island
     else:
+        island = regional_unit.replace("Regional Unit of", "").strip()
+        island = island.replace("Regional Unit", "").strip()
         return island
 
 
-def parse_island_group(parts):
-    group = ISLAND_GROUPS[parts[-3].strip()]
-    return group
-
-
 def parse_address(address):
-    parts = address.split(",")
-    island = parse_island_name(parts)
-    group = parse_island_group(parts)
+    address = address['address']
+
+    municipality = address.get('municipality', None)
+    regional_unit = address.get('county', None)
+    state_district = address.get('state_district', None)
+    island = parse_island_name(municipality, regional_unit)
+    group = ISLAND_GROUPS.get(state_district)
     return island, group
 
 
@@ -220,14 +232,20 @@ def copy_file(source_path, target_dir, target_name):
 
 def move_file_to_output_folder(filepath):
     lat, lon, capture_datetime = get_gps_data_from_metadata(filepath)
-    print(f"Found GPS data in {filepath}")
+
+    if lat is None or lon is None:
+        # Move the file to the output folder
+        filename = os.path.basename(filepath)
+        filename, extension = os.path.splitext(filename)
+        target_dir = pathjoin("Stelios Photos for Istion", "no_gps")
+        target_name = filename + "_" + "no_gps" + extension
+        copy_file(filepath, target_dir, target_name)
+        return
 
     address = get_address_from_gps(str(lat), str(lon))
-    print(address)
     island, group = parse_address(address)
     print(island, group)
 
-    print(filepath)
     if filepath.lower().endswith(tuple(ACCEPTED_IMAGE_FILETYPES)):
         append_to_tracker(capture_datetime, lat, lon, island)
 
@@ -249,6 +267,17 @@ def select_target_directory():
         return None
 
 
+priority_dict = {ext: index for index, ext in enumerate(FILE_SORTING_LIST)}
+
+def get_priority(file_path):
+    extension = file_path.split('.')[-1].lower()
+    return priority_dict.get(extension, len(priority_dict))
+
+
+def sort_files_by_priority(file_paths):
+    return sorted(file_paths, key=get_priority)
+
+
 def list_files_in_directory(target_dir, function=None):
     file_list = []
     # Walk through the directory tree
@@ -257,8 +286,12 @@ def list_files_in_directory(target_dir, function=None):
         for filename in filenames:
             full_path = os.path.join(root, filename)
             file_list.append(full_path)
-            if function is not None:
-                function(full_path)
+
+    file_list = sort_files_by_priority(file_list)
+
+    if function is not None:
+        for full_path in file_list:
+            function(full_path)
 
     return file_list
 
@@ -269,9 +302,6 @@ def organize_photos():
         return
 
     print(f"Selected directory: {target_dir}")
-
-    target_files = list_files_in_directory(target_dir)
-    print(f"Found {len(target_files)} files in the selected directory")
 
     list_files_in_directory(target_dir, function=move_file_to_output_folder)
 

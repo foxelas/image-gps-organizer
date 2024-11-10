@@ -1,16 +1,20 @@
 ACCEPTED_IMAGE_FILETYPES = ['jpg', 'dng']
 VIDEO_FILETYPES = ['mov', 'mp4']
+FILE_SORTING_LIST = ['jpg', 'JPG', 'dng', 'DNG', 'mov', 'MOV', 'mp4', 'MP4']
 
 TRACKER_FILE = 'location_tracker.csv'
 
 ISLAND_GROUPS = {
-    'South Aegean': 'Cyclades',
-    'North Aegean': 'Sporades',
+    'South Aegean': 'South Aegean',
+    'North Aegean': 'North Aegean',
     'Crete': 'Crete',
     'Dodecanese': 'Dodekanisa',
     'Attica': 'Saronic',
-    'Ionian Islands': 'Ionio'
+    'Ionian Islands': 'Ionio',
+    'Ioanian Islands': 'Ionio'
+
 }
+
 
 from geopy.geocoders import Nominatim
 GEOLOCATOR = Nominatim(user_agent="photo_organizer")
