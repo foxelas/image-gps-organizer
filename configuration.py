@@ -1,6 +1,7 @@
 ACCEPTED_IMAGE_FILETYPES = ['jpg', 'jpeg', 'dng']
 VIDEO_FILETYPES = ['mov', 'mp4']
 FILE_SORTING_LIST = ['jpg', 'jpeg', 'JPG', 'png', 'heic', 'HEIC', 'dng', 'DNG', 'mov', 'MOV', 'mp4', 'MP4']
+EXPORT_DIRECTORY = "Stelios Photos for Istion"
 
 TRACKER_FILE = 'location_tracker.csv'
 

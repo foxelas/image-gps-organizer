@@ -1,15 +1,17 @@
 import os
 import shutil
 import tkinter as tk
+import xml.etree.ElementTree as ET
 from os.path import join as pathjoin
 from tkinter import filedialog
-import xml.etree.ElementTree as ET
+
 import ffmpeg
+import pandas as pd
 import piexif
 from PIL import Image
-import pandas as pd
-from configuration import ACCEPTED_IMAGE_FILETYPES, ISLAND_GROUPS, CODEC, GEOLOCATOR, VIDEO_FILETYPES, TRACKER_FILE, \
-    FILE_SORTING_LIST
+
+from configuration import ACCEPTED_IMAGE_FILETYPES, ISLAND_GROUPS, CODEC, GEOLOCATOR, TRACKER_FILE, \
+    EXPORT_DIRECTORY
 from tools import list_files_in_directory
 
 
@@ -238,7 +240,7 @@ def move_file_to_output_folder(filepath):
         # Move the file to the output folder
         filename = os.path.basename(filepath)
         filename, extension = os.path.splitext(filename)
-        target_dir = pathjoin("Stelios Photos for Istion", "no_gps")
+        target_dir = pathjoin(EXPORT_DIRECTORY, "no_gps")
         target_name = filename + "_" + "no_gps" + extension
         copy_file(filepath, target_dir, target_name)
         return
@@ -253,7 +255,7 @@ def move_file_to_output_folder(filepath):
     # Move the file to the output folder
     filename = os.path.basename(filepath)
     filename, extension = os.path.splitext(filename)
-    target_dir = pathjoin("Stelios Photos for Istion", group, island)
+    target_dir = pathjoin(EXPORT_DIRECTORY, group, island)
     target_name = filename + "_" + group + "_" + island + extension
     copy_file(filepath, target_dir, target_name)
     print(f"\n")
@@ -291,7 +293,8 @@ canvas1.pack()
 button1 = tk.Button(text='Organize Photos', command=organize_photos, bg='blue', fg='white')
 canvas1.create_window(140, 150, window=button1, height=50, width=200)
 lbl = tk.Label(
-    text=" Scans a selected folder (and its subfolders) for photos with GPS metadata. \nMoves these photos to a new folder, renaming them to include \nthe corresponding island and group information.",
+    text="Scans a selected folder (and its subfolders) for photos with GPS metadata. \nMoves these photos to a new "
+         "folder, renaming them to include \nthe corresponding island and group information.",
     justify=tk.LEFT, bd=4, relief=tk.RIDGE, bg='lightblue')
 lbl.place(x=40, y=50)
 lbl2 = tk.Label(text="")
