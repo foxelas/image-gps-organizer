@@ -5,3 +5,4 @@ pandas~=2.2.2
 mediameta
 ffmpeg-python
 pyinstaller
+pillow-heif

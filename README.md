@@ -14,3 +14,18 @@ A file with location and date tracker is saved in location_tracker.csv
 
 ** To convert the script into an .exe file, use the following command:
 ```$pyinstaller --onefile -w main.py```
+
+
+## Additional tools 
+
+1. Convert jpg to png  
+```
+import tools
+tools.convert_jpg_to_png_bulk('path/to/folder')
+```
+
+2. Convert heic to jpg  
+```
+import tools
+tools.convert_heic_to_jpg_bulk('path/to/folder')
+```

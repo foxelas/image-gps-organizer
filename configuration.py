@@ -1,6 +1,6 @@
-ACCEPTED_IMAGE_FILETYPES = ['jpg', 'dng']
+ACCEPTED_IMAGE_FILETYPES = ['jpg', 'jpeg', 'dng']
 VIDEO_FILETYPES = ['mov', 'mp4']
-FILE_SORTING_LIST = ['jpg', 'JPG', 'dng', 'DNG', 'mov', 'MOV', 'mp4', 'MP4']
+FILE_SORTING_LIST = ['jpg', 'jpeg', 'JPG', 'png', 'heic', 'HEIC', 'dng', 'DNG', 'mov', 'MOV', 'mp4', 'MP4']
 
 TRACKER_FILE = 'location_tracker.csv'
 

@@ -10,6 +10,7 @@ from PIL import Image
 import pandas as pd
 from configuration import ACCEPTED_IMAGE_FILETYPES, ISLAND_GROUPS, CODEC, GEOLOCATOR, VIDEO_FILETYPES, TRACKER_FILE, \
     FILE_SORTING_LIST
+from tools import list_files_in_directory
 
 
 def init_date_tracker():
@@ -265,35 +266,6 @@ def select_target_directory():
         return directory_path
     else:
         return None
-
-
-priority_dict = {ext: index for index, ext in enumerate(FILE_SORTING_LIST)}
-
-def get_priority(file_path):
-    extension = file_path.split('.')[-1].lower()
-    return priority_dict.get(extension, len(priority_dict))
-
-
-def sort_files_by_priority(file_paths):
-    return sorted(file_paths, key=get_priority)
-
-
-def list_files_in_directory(target_dir, function=None):
-    file_list = []
-    # Walk through the directory tree
-    for root, dirnames, filenames in os.walk(target_dir):
-        filenames = [x for x in filenames if x.lower().endswith(tuple(ACCEPTED_IMAGE_FILETYPES + VIDEO_FILETYPES))]
-        for filename in filenames:
-            full_path = os.path.join(root, filename)
-            file_list.append(full_path)
-
-    file_list = sort_files_by_priority(file_list)
-
-    if function is not None:
-        for full_path in file_list:
-            function(full_path)
-
-    return file_list
 
 
 def organize_photos():
