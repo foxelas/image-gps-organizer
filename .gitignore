@@ -151,6 +151,20 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
+# LaTeX intermediate files
+*.aux
+*.bbl
+*.blg
+*.idx
+*.log
+*.out
+*.toc
+*.synctex.gz
+
+# MaCOS
+*.DS_Store
+
+
 Stelios Photos for Istion/
 Stelios Photos for Istion/*
 location_tracker.csv
